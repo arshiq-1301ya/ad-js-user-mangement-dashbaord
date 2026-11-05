@@ -1,0 +1,257 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>User Management Dashboard</title>
+    <style>
+        body {
+            font-family: sans-serif;
+            padding: 20px;
+            max-width: 850px;
+            margin: 0 auto;
+            background: #f7f8fa;
+            color: #222;
+        }
+
+        h1 {
+            margin-bottom: 16px;
+        }
+
+        button {
+            padding: 8px 12px;
+            margin: 5px 5px 5px 0;
+            border: 0;
+            border-radius: 5px;
+            cursor: pointer;
+            background: #2457c5;
+            color: white;
+        }
+
+        button:hover {
+            opacity: 0.9;
+        }
+
+        button:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+        }
+
+        .user-card {
+            border: 1px solid #ccc;
+            padding: 12px;
+            margin: 12px 0;
+            border-radius: 7px;
+            background: white;
+        }
+
+        .user-card p {
+            margin: 7px 0;
+        }
+
+        #status {
+            color: #2457c5;
+            font-weight: bold;
+            min-height: 20px;
+            margin-bottom: 10px;
+        }
+
+        .error {
+            color: #c62828 !important;
+        }
+
+        .success {
+            color: #247a35 !important;
+        }
+    </style>
+</head>
+<body>
+
+    <h1>User Management Dashboard</h1>
+
+    <div id="status" role="status" aria-live="polite"></div>
+
+    <button id="btn-create">Add New User (POST)</button>
+
+    <div id="user-list"></div>
+
+    <script>
+        const API_URL = 'https://jsonplaceholder.typicode.com/users';
+
+        const userListDiv = document.getElementById('user-list');
+        const statusDiv = document.getElementById('status');
+        const createButton = document.getElementById('btn-create');
+
+        // Keep the users in memory so we can send all existing fields in a PUT request.
+        let users = [];
+
+        function setStatus(message, type = '') {
+            statusDiv.textContent = message;
+            statusDiv.className = type;
+        }
+
+        function createUserCard(user) {
+            const card = document.createElement('div');
+            card.className = 'user-card';
+            card.dataset.userId = user.id;
+
+            const name = document.createElement('h3');
+            name.textContent = user.name;
+
+            const email = document.createElement('p');
+            email.textContent = `Email: ${user.email}`;
+            email.className = 'user-email';
+
+            card.append(name, email);
+
+            // The assignment asks for the Update Email button beside the first user only.
+            if (Number(user.id) === 1) {
+                const updateButton = document.createElement('button');
+                updateButton.textContent = 'Update Email';
+                updateButton.addEventListener('click', () => updateUserEmail(user.id));
+                card.appendChild(updateButton);
+            }
+
+            const deleteButton = document.createElement('button');
+            deleteButton.textContent = 'Delete';
+            deleteButton.addEventListener('click', () => deleteUser(user.id));
+            card.appendChild(deleteButton);
+
+            return card;
+        }
+
+        function renderUsers() {
+            userListDiv.replaceChildren();
+
+            users.forEach((user) => {
+                userListDiv.appendChild(createUserCard(user));
+            });
+        }
+
+        // TASK 1: GET USERS
+        async function loadUsers() {
+            setStatus('Loading...');
+
+            try {
+                const response = await fetch(API_URL);
+
+                if (!response.ok) {
+                    throw new Error(`Could not load users. HTTP status: ${response.status}`);
+                }
+
+                users = await response.json();
+                renderUsers();
+                setStatus('Users loaded successfully.', 'success');
+            } catch (error) {
+                setStatus(`Error: ${error.message}. Please try again.`, 'error');
+            } finally {
+                // The loading message is replaced by either a success or error message.
+            }
+        }
+
+        // TASK 2: CREATE USER (POST)
+        createButton.addEventListener('click', async () => {
+            setStatus('Loading...');
+            createButton.disabled = true;
+
+            const newUser = {
+                name: 'John Doe',
+                email: 'john@example.com'
+            };
+
+            try {
+                const response = await fetch(API_URL, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json; charset=UTF-8'
+                    },
+                    body: JSON.stringify(newUser)
+                });
+
+                if (!response.ok) {
+                    throw new Error(`Could not create user. HTTP status: ${response.status}`);
+                }
+
+                const createdUser = await response.json();
+                users.push(createdUser);
+                renderUsers();
+                setStatus('New user added successfully.', 'success');
+            } catch (error) {
+                setStatus(`Error: ${error.message}. Please try again.`, 'error');
+            } finally {
+                createButton.disabled = false;
+            }
+        });
+
+        // TASK 3: UPDATE USER EMAIL (PUT)
+        async function updateUserEmail(userId) {
+            setStatus('Loading...');
+
+            try {
+                const selectedUser = users.find((user) => Number(user.id) === Number(userId));
+
+                if (!selectedUser) {
+                    throw new Error('User was not found in the dashboard.');
+                }
+
+                const updatedUser = {
+                    ...selectedUser,
+                    email: 'updated@example.com'
+                };
+
+                const response = await fetch(`${API_URL}/${userId}`, {
+                    method: 'PUT',
+                    headers: {
+                        'Content-Type': 'application/json; charset=UTF-8'
+                    },
+                    body: JSON.stringify(updatedUser)
+                });
+
+                if (!response.ok) {
+                    throw new Error(`Could not update user. HTTP status: ${response.status}`);
+                }
+
+                const result = await response.json();
+
+                // JSONPlaceholder simulates the update, so update the local UI too.
+                users = users.map((user) =>
+                    Number(user.id) === Number(userId) ? { ...user, ...result, email: 'updated@example.com' } : user
+                );
+
+                renderUsers();
+                setStatus('User email updated successfully.', 'success');
+            } catch (error) {
+                setStatus(`Error: ${error.message}. Please try again.`, 'error');
+            } finally {
+                // The loading message is replaced by either a success or error message.
+            }
+        }
+
+        // TASK 4: DELETE USER (DELETE)
+        async function deleteUser(userId) {
+            setStatus('Loading...');
+
+            try {
+                const response = await fetch(`${API_URL}/${userId}`, {
+                    method: 'DELETE'
+                });
+
+                if (!response.ok) {
+                    throw new Error(`Could not delete user. HTTP status: ${response.status}`);
+                }
+
+                users = users.filter((user) => Number(user.id) !== Number(userId));
+                renderUsers();
+                setStatus('User deleted successfully.', 'success');
+            } catch (error) {
+                setStatus(`Error: ${error.message}. Please try again.`, 'error');
+            } finally {
+                // The loading message is replaced by either a success or error message.
+            }
+        }
+
+        // Load users automatically when the page opens.
+        loadUsers();
+    </script>
+</body>
+</html>
